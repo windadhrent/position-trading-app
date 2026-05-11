@@ -17,7 +17,26 @@ st.set_page_config(
 st.markdown("""
 <style>
     footer { visibility: hidden; }
-    .main .block-container { padding-bottom: 20rem; }
+    .main .block-container {
+        padding-bottom: 20rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    /* Mobile: wrap columns and reduce font */
+    @media screen and (max-width: 640px) {
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"],
+        [data-testid="stHorizontalBlock"] > div {
+            min-width: 45% !important;
+            flex: 1 1 45% !important;
+        }
+        [data-testid="stMetric"] label { font-size: 0.75rem !important; }
+        [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+        .main .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -149,9 +168,10 @@ st.title("存股操作 Position Trading APP")
 st.caption(f"資料更新每 15 分鐘 ｜ TAIEX 最後收盤：{df_raw.index[-1].strftime('%Y-%m-%d')}")
 
 # ── KPI Row ───────────────────────────────────────────────────────────────────
-k1, k2, k3, k4, k5 = st.columns(5)
+k1, k2 = st.columns(2)
 k1.metric("TAIEX", f"{price:,.0f}")
 k2.metric("200MA", f"{ma200:,.0f}", delta=f"{price - ma200:+,.0f}")
+k3, k4, k5 = st.columns(3)
 k3.metric("52W 高點", f"{high_52w:,.0f}")
 k4.metric("回撤 %", f"{drawdown_pct:.1f}%")
 k5.metric("200MA 相對位置",
