@@ -8,9 +8,12 @@ from config import TAIEX_SYMBOL, PORTFOLIO_SYMBOLS
 @st.cache_data(ttl=900)
 def fetch_taiex() -> pd.DataFrame:
     """Pull 5 years of TAIEX daily OHLCV via Ticker.history (more reliable on cloud)."""
-    df = yf.Ticker(TAIEX_SYMBOL).history(period="5y", interval="1d", auto_adjust=True)
+    df = yf.Ticker(TAIEX_SYMBOL).history(period="5y", interval="1d")
     if df.empty:
         raise RuntimeError("無法取得 TAIEX 資料，請稍後再試")
+    # 移除時區資訊，避免雲端環境 tz-aware index 問題
+    if hasattr(df.index, "tz") and df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
     df = df.dropna(subset=["Close"])
     return df
 
