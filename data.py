@@ -7,11 +7,14 @@ from config import TAIEX_SYMBOL, PORTFOLIO_SYMBOLS
 
 @st.cache_data(ttl=900)
 def fetch_taiex() -> pd.DataFrame:
-    """Pull 2 years of TAIEX daily OHLCV (guarantees 200+ trading days for MA200)."""
+    """Pull 5 years of TAIEX daily OHLCV (guarantees 200+ trading days for MA200)."""
     df = yf.download(TAIEX_SYMBOL, period="5y", interval="1d",
                      auto_adjust=True, progress=False)
-    df.columns = df.columns.get_level_values(0)
-    return df.dropna()
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    # 只移除 Close 為 NaN 的列，保留其他欄位可能含 NaN 的列
+    df = df.dropna(subset=["Close", "Open", "High", "Low", "Volume"])
+    return df
 
 
 @st.cache_data(ttl=900)
@@ -28,7 +31,9 @@ def fetch_etf_prices() -> dict[str, float]:
 
 
 def compute_indicators(df: pd.DataFrame) -> dict:
-    """Derive 200MA, 52-week high, drawdown from TAIEX dataframe."""
+    """Derive 200MA, 60MA, 52-week high, drawdown from TAIEX dataframe."""
+    if df.empty or "Close" not in df.columns:
+        raise RuntimeError("無法取得 TAIEX 資料，請稍後再試")
     df = df.copy()
     df["MA200"] = df["Close"].rolling(200).mean()
     df["MA60"]  = df["Close"].rolling(60).mean()
