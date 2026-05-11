@@ -1,0 +1,18 @@
+# Secrets
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Screenshots & debug images
+*.png
+*.jpg
+*.jpeg
+
+# Logs
+*.log
+
+# State (ephemeral on cloud)
+state.json
