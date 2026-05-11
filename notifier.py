@@ -23,12 +23,12 @@ def save_state(state: dict):
 
 
 def send_line(message: str) -> bool:
-    url = "https://api.line.me/v2/bot/message/push"
+    url = "https://api.line.me/v2/bot/message/broadcast"
     headers = {
         "Authorization": f"Bearer {LINE_TOKEN}",
         "Content-Type": "application/json",
     }
-    payload = {"to": LINE_USER_ID, "messages": [{"type": "text", "text": message}]}
+    payload = {"messages": [{"type": "text", "text": message}]}
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=10)
         return r.status_code == 200
