@@ -119,7 +119,9 @@ with st.sidebar:
 
     # 原持倉 / 持倉目標：全部以規則定義顯示
     if rule_key == "bull":
-        prev_rule = get_last_non_bull_rule()
+        # 從歷史確認序列往回掃，找最近一次非多頭規則（不依賴 state.json）
+        _hist_non_bull = [r for r in _df_conf["ConfRule"] if r != "bull"]
+        prev_rule = _hist_non_bull[-1] if _hist_non_bull else get_last_non_bull_rule()
         if prev_rule:
             prev_alloc = build_target_allocation(prev_rule, eff_us_w)
             st.caption(f"原持倉（{RULES[prev_rule]['label']} 配置，持有不調整）")
