@@ -1,4 +1,5 @@
 import math
+import time
 import yfinance as yf
 import pandas as pd
 import streamlit as st
@@ -7,15 +8,22 @@ from config import TAIEX_SYMBOL, PORTFOLIO_SYMBOLS
 
 @st.cache_data(ttl=900)
 def fetch_taiex() -> pd.DataFrame:
-    """Pull 5 years of TAIEX daily OHLCV via Ticker.history (more reliable on cloud)."""
-    df = yf.Ticker(TAIEX_SYMBOL).history(period="5y", interval="1d")
-    if df.empty:
-        raise RuntimeError("無法取得 TAIEX 資料，請稍後再試")
-    # 移除時區資訊，避免雲端環境 tz-aware index 問題
+    """Pull 5 years of TAIEX daily OHLCV. Retries up to 3x on rate limit."""
+    for attempt in range(3):
+        try:
+            df = yf.Ticker(TAIEX_SYMBOL).history(period="5y", interval="1d")
+            if not df.empty:
+                break
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(5)
+    else:
+        raise RuntimeError("Yahoo Finance 暫時限速，請稍後重新整理")
+
     if hasattr(df.index, "tz") and df.index.tz is not None:
         df.index = df.index.tz_localize(None)
-    df = df.dropna(subset=["Close"])
-    return df
+    return df.dropna(subset=["Close"])
 
 
 @st.cache_data(ttl=900)
