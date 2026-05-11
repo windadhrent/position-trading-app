@@ -181,36 +181,31 @@ k5.metric("200MA 相對位置",
 
 # ── State Banner ──────────────────────────────────────────────────────────────
 st.divider()
-banner_col, status_col = st.columns([1, 3])
+st.markdown(
+    f"""<div style="background:{rule_info['color']};padding:20px 16px;
+        border-radius:12px;text-align:center;margin-bottom:1rem;">
+        <div style="font-size:2.2rem;font-weight:900;color:white;
+            text-shadow:0 2px 4px rgba(0,0,0,.4);">{rule_info['label']}</div>
+        <div style="font-size:1rem;color:rgba(255,255,255,0.85);margin-top:6px;">{rule_info['desc']}</div>
+    </div>""",
+    unsafe_allow_html=True,
+)
+if "special_action" in rule_info:
+    st.error(f"⚠ {rule_info['special_action']}")
 
-with banner_col:
-    st.markdown(
-        f"""<div style="background:{rule_info['color']};padding:24px 16px;
-            border-radius:12px;text-align:center;">
-            <div style="font-size:2.2rem;font-weight:900;color:white;
-                text-shadow:0 2px 4px rgba(0,0,0,.4);">{rule_info['label']}</div>
-        </div>""",
-        unsafe_allow_html=True,
-    )
-
-with status_col:
-    st.markdown(f"### {rule_info['desc']}")
-    if "special_action" in rule_info:
-        st.error(f"⚠ {rule_info['special_action']}")
-
-    abs_dd = abs(drawdown_pct)
-    checks = [
-        ("價格跌破年線（規則一）",  not above_200ma,  None),
-        ("回撤 ≥ 20%（規則二）",    abs_dd >= 20,     20.0),
-        ("回撤 ≥ 30%（規則三）",    abs_dd >= 30,     30.0),
-        ("回撤 ≥ 40%（規則四）",    abs_dd >= 40,     40.0),
-    ]
-    for label, triggered, threshold in checks:
-        if triggered:
-            st.markdown(f"✅ **{label}** — 已觸發")
-        else:
-            note = f"（現 {abs_dd:.1f}% / 需 {threshold:.0f}%）" if threshold else ""
-            st.markdown(f"⬜ {label} — 未觸發 {note}")
+abs_dd = abs(drawdown_pct)
+checks = [
+    ("價格跌破年線（規則一）",  not above_200ma,  None),
+    ("回撤 ≥ 20%（規則二）",    abs_dd >= 20,     20.0),
+    ("回撤 ≥ 30%（規則三）",    abs_dd >= 30,     30.0),
+    ("回撤 ≥ 40%（規則四）",    abs_dd >= 40,     40.0),
+]
+for label, triggered, threshold in checks:
+    if triggered:
+        st.markdown(f"✅ **{label}** — 已觸發")
+    else:
+        note = f"（現 {abs_dd:.1f}% / 需 {threshold:.0f}%）" if threshold else ""
+        st.markdown(f"⬜ {label} — 未觸發 {note}")
 
 # ── K-Line Chart ──────────────────────────────────────────────────────────────
 st.divider()
