@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -260,6 +261,15 @@ if dca_rows:
     else:
         st.info("無論多空：每月固定 DCA 富邦台50（006208）$5,000 + 統一美國50（009811）$5,000")
 
+
+# ── 台股投資組合計算器 ─────────────────────────────────────────────────────────
+st.divider()
+st.subheader("台股投資組合計算器")
+components.iframe(
+    "https://tool.yp-finance.com/twportfolio/0abfed7d-1d2c-4f25-b4ae-08ed5f9ba1b8",
+    height=800,
+    scrolling=True,
+)
 
 # ── Rules Reference ───────────────────────────────────────────────────────────
 with st.expander("所有規則對照表"):
