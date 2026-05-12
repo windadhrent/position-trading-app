@@ -44,9 +44,6 @@ st.markdown("""
 with st.sidebar:
     st.title("存股操作 設定")
 
-    st.subheader("K 線顯示天數")
-    candle_days = st.slider("天數", 60, 300, 150, step=10)
-
     st.divider()
     auto_notify = st.toggle("切換規則時推播 LINE", value=True)
     if st.button("手動重新整理"):
@@ -73,7 +70,7 @@ with st.spinner("載入市場資料..."):
     etf_px   = fetch_etf_prices()
     ind      = compute_indicators(df_raw)
 
-df_chart = df_raw.iloc[-candle_days:].copy()
+df_chart = df_raw.iloc[-150:].copy()
 price        = ind["price"]
 ma200        = ind["ma200"]
 high_52w     = ind["high_52w"]
