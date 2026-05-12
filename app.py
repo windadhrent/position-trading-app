@@ -515,7 +515,7 @@ with st.expander("📅 規則回測（歷史觸發紀錄）"):
             height=520, xaxis_rangeslider_visible=False,
             template="plotly_dark",
             legend=dict(orientation="h", y=1.02),
-            margin=dict(l=0, r=0, t=60, b=0),
+            margin=dict(l=0, r=0, t=120, b=0),
         )
         st.plotly_chart(fig_bt, use_container_width=True)
 
