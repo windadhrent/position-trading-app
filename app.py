@@ -5,7 +5,7 @@ import pandas as pd
 
 from data import fetch_taiex, fetch_etf_prices, compute_indicators
 from strategy import get_current_rule, apply_confirmation_filter, build_target_allocation, get_dca_instruction
-from notifier import check_and_notify, track_rule_change, get_last_non_bull_rule, get_deepest_rule
+from notifier import check_and_notify, track_rule_change, get_last_non_bull_rule, get_deepest_rule, get_deepest_rule_date
 from config import RULES, RULE_SEVERITY, PORTFOLIO_SYMBOLS, SYMBOL_NAMES, DCA_AMOUNT
 
 st.set_page_config(
@@ -135,8 +135,13 @@ with st.sidebar:
 
     st.divider()
 
-    # 找最近一次進入 target_rule 的日期（從歷史確認序列掃）
+    # 找最近一次進入 target_rule 的日期
+    # 優先讀 state.json（live 觸發時已記錄），找不到再掃歷史序列
     def _find_trigger_date(target_rule: str) -> str:
+        if target_rule == get_deepest_rule():
+            saved = get_deepest_rule_date()
+            if saved:
+                return saved
         prev_r, trig_dt = None, None
         for dt, r in _df_conf["ConfRule"].items():
             if r == target_rule and prev_r != target_rule:

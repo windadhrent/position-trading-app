@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+from datetime import date
 import requests
 from config import LINE_TOKEN, LINE_USER_ID, RULES, RULE_SEVERITY
 
@@ -25,6 +26,10 @@ def get_last_non_bull_rule() -> str | None:
 
 def get_deepest_rule() -> str | None:
     return load_state().get("deepest_rule")
+
+
+def get_deepest_rule_date() -> str | None:
+    return load_state().get("deepest_rule_date")
 
 
 def send_line(message: str) -> bool:
@@ -60,9 +65,11 @@ def track_rule_change(current_rule: str) -> tuple[bool, str, str | None]:
     curr_sev = RULE_SEVERITY.get(current_rule, 0)
     direction = "deepen" if curr_sev > prev_sev else "recover"
 
+    today = date.today().isoformat()
     # 新循環：多頭再次進入規則一 → reset deepest_rule
     if (prev_rule == "bull" or prev_rule is None) and current_rule == "rule1":
         state["deepest_rule"] = "rule1"
+        state["deepest_rule_date"] = today
         direction = "deepen"
     elif direction == "deepen":
         # 更新最深艙位記錄
@@ -70,6 +77,7 @@ def track_rule_change(current_rule: str) -> tuple[bool, str, str | None]:
         deepest_sev = RULE_SEVERITY.get(deepest or "bull", 0)
         if curr_sev > deepest_sev:
             state["deepest_rule"] = current_rule
+            state["deepest_rule_date"] = today
     # 恢復方向：deepest_rule 維持不變
 
     if prev_rule and prev_rule != "bull":

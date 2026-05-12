@@ -14,5 +14,3 @@ __pycache__/
 # Logs
 *.log
 
-# State (ephemeral on cloud)
-state.json
