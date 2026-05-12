@@ -493,13 +493,15 @@ with st.expander("📅 規則回測（歷史觸發紀錄）"):
                 x=_dt, line_dash="dot", line_color=_color,
                 line_width=1.2, opacity=0.8,
             )
-            # 標籤（固定在圖表頂部，靠近切換點）
+            # 再平衡標註放高、維持持倉放低，兩層錯開避免重疊
+            _ann_y    = 1.08 if _is_deepen else 0.95
+            _ann_size = 10   if _is_deepen else 8
             fig_bt.add_annotation(
-                x=_dt, y=1.01,
+                x=_dt, y=_ann_y,
                 xref="x", yref="paper",
                 text=_ann_text,
                 showarrow=False,
-                font=dict(size=8, color=_color),
+                font=dict(size=_ann_size, color=_color),
                 bgcolor="rgba(20,20,20,0.78)",
                 bordercolor=_color,
                 borderwidth=1,
@@ -510,10 +512,10 @@ with st.expander("📅 規則回測（歷史觸發紀錄）"):
             )
 
         fig_bt.update_layout(
-            height=480, xaxis_rangeslider_visible=False,
+            height=520, xaxis_rangeslider_visible=False,
             template="plotly_dark",
             legend=dict(orientation="h", y=1.02),
-            margin=dict(l=0, r=0, t=30, b=0),
+            margin=dict(l=0, r=0, t=60, b=0),
         )
         st.plotly_chart(fig_bt, use_container_width=True)
 
