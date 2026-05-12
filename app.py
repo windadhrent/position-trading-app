@@ -488,10 +488,14 @@ with st.expander("📅 規則回測（歷史觸發紀錄）"):
             else:
                 _ann_text = f"<b>↓ {RULES[_rule]['label']}</b><br>維持持倉"
 
-            # 垂直虛線
-            fig_bt.add_vline(
-                x=_dt, line_dash="dot", line_color=_color,
-                line_width=1.2, opacity=0.8,
+            # 垂直虛線：從圖底延伸到標註框底部
+            fig_bt.add_shape(
+                type="line",
+                x0=_dt, x1=_dt,
+                y0=0, y1=_ann_y,
+                xref="x", yref="paper",
+                line=dict(dash="dot", color=_color, width=1.2),
+                opacity=0.8,
             )
             # 再平衡標註放高、維持持倉放低，兩層錯開避免重疊
             _ann_y    = 1.08 if _is_deepen else 0.95
