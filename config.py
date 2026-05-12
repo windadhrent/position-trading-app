@@ -73,6 +73,10 @@ RULE_RATIOS = {
     "rule4": {"leverage": 0.50, "us": 0.50, "cash": 0.00},
 }
 
-# US equity symbols for Rules 1-3 (configurable split); Rule 4 = 00757 only
-US_EQUITY_POOL = ["00757.TW", "009811.TW"]
+# US equity symbol for trading position (Rules 1-3); Rule 4 = same
+# 009811 is DCA-only — never in trading/rebalancing targets
+US_EQUITY_POOL = ["00757.TW"]
 US_EQUITY_RULE4 = "00757.TW"
+
+# Rule severity: higher = deeper / more defensive
+RULE_SEVERITY = {"bull": 0, "rule1": 1, "rule2": 2, "rule3": 3, "rule4": 4}

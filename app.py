@@ -5,8 +5,8 @@ import pandas as pd
 
 from data import fetch_taiex, fetch_etf_prices, compute_indicators
 from strategy import get_current_rule, apply_confirmation_filter, build_target_allocation, get_dca_instruction
-from notifier import check_and_notify, track_rule_change, get_last_non_bull_rule
-from config import RULES, PORTFOLIO_SYMBOLS, SYMBOL_NAMES, DCA_AMOUNT
+from notifier import check_and_notify, track_rule_change, get_last_non_bull_rule, get_deepest_rule
+from config import RULES, RULE_SEVERITY, PORTFOLIO_SYMBOLS, SYMBOL_NAMES, DCA_AMOUNT
 
 st.set_page_config(
     page_title="存股操作 Position Trading APP",
@@ -80,7 +80,7 @@ high_52w     = ind["high_52w"]
 drawdown_pct = ind["drawdown_pct"]
 above_200ma  = ind["above_200ma"]
 
-us_weights = {"00757.TW": 0.5, "009811.TW": 0.5}
+us_weights = {"00757.TW": 1.0}   # 009811 是 DCA 部位，不納入交易再平衡
 eff_us_w   = us_weights
 
 # ── 3 日確認濾波（過濾假突破）────────────────────────────────────────────────
@@ -107,9 +107,11 @@ if test_mode:
 
 rule_info  = RULES[rule_key]
 
-track_rule_change(rule_key)
-if auto_notify:
-    check_and_notify(rule_key, ind)
+# 測試模式不寫入 state.json，避免污染真實狀態
+if not test_mode:
+    changed, direction, prev_rule_key = track_rule_change(rule_key)
+    if auto_notify and changed:
+        check_and_notify(rule_key, prev_rule_key, direction, ind)
 
 # ── Sidebar (allocation panel — rendered after rule is known) ─────────────────
 _ALLOC_LABELS = {
@@ -136,16 +138,29 @@ with st.sidebar:
 
     st.divider()
 
-    # 原持倉 / 持倉目標：全部以規則定義顯示
+    # 找最近一次進入 target_rule 的日期（從歷史確認序列掃）
+    def _find_trigger_date(target_rule: str) -> str:
+        prev_r, trig_dt = None, None
+        for dt, r in _df_conf["ConfRule"].items():
+            if r == target_rule and prev_r != target_rule:
+                trig_dt = dt
+            prev_r = r
+        return trig_dt.strftime("%Y/%m/%d") if trig_dt else "—"
+
+    # 持倉顯示：依「最深艙位」與「方向」決定顯示內容
+    # 多頭 or 恢復中 → 顯示最深艙位（持有不調整）
+    # 加深 / 首次觸發 → 顯示再平衡目標
+    _deepest = get_deepest_rule()
+
     if rule_key == "bull":
-        # 從歷史確認序列往回掃，找最近一次非多頭規則（不依賴 state.json）
-        _hist_non_bull = [r for r in _df_conf["ConfRule"] if r != "bull"]
-        prev_rule = _hist_non_bull[-1] if _hist_non_bull else get_last_non_bull_rule()
-        if prev_rule:
-            prev_alloc = build_target_allocation(prev_rule, eff_us_w)
-            st.caption(f"原持倉（{RULES[prev_rule]['label']} 配置，持有不調整）")
-            for sym in ["00675L.TW", "00757.TW", "009811.TW", "CASH"]:
-                pct = prev_alloc.get(sym, 0.0) * 100
+        held_rule = _deepest or get_last_non_bull_rule()
+        if held_rule:
+            held_alloc  = build_target_allocation(held_rule, eff_us_w)
+            trigger_date = _find_trigger_date(held_rule)
+            st.caption(f"原持倉（{RULES[held_rule]['label']} 配置，持有不調整）")
+            st.caption(f"觸發日：{trigger_date}")
+            for sym in ["00675L.TW", "00757.TW", "CASH"]:
+                pct = held_alloc.get(sym, 0.0) * 100
                 col_l, col_r = st.columns([3, 1])
                 col_l.caption(_ALLOC_LABELS[sym])
                 col_r.markdown(f"**{pct:.0f}%**")
@@ -156,12 +171,28 @@ with st.sidebar:
                 col_l.caption(_ALLOC_LABELS[sym])
                 col_r.markdown("**—**")
     else:
-        st.caption("持倉目標比例（再平衡基準）")
-        for sym in ["00675L.TW", "00757.TW", "009811.TW", "CASH"]:
-            pct = target_alloc_sidebar.get(sym, 0.0) * 100
-            col_l, col_r = st.columns([3, 1])
-            col_l.caption(_ALLOC_LABELS[sym])
-            col_r.markdown(f"**{pct:.0f}%**")
+        # 判斷是否為恢復中（當前規則比最深艙位淺）
+        _curr_sev   = RULE_SEVERITY.get(rule_key, 0)
+        _deepst_sev = RULE_SEVERITY.get(_deepest or rule_key, 0)
+        _is_recover = _deepest and _deepst_sev > _curr_sev
+
+        if _is_recover:
+            held_alloc   = build_target_allocation(_deepest, eff_us_w)
+            trigger_date = _find_trigger_date(_deepest)
+            st.caption(f"持有中（{RULES[_deepest]['label']} 配置，維持不調整）")
+            st.caption(f"觸發日：{trigger_date}")
+            for sym in ["00675L.TW", "00757.TW", "CASH"]:
+                pct = held_alloc.get(sym, 0.0) * 100
+                col_l, col_r = st.columns([3, 1])
+                col_l.caption(_ALLOC_LABELS[sym])
+                col_r.markdown(f"**{pct:.0f}%**")
+        else:
+            st.caption("持倉目標比例（再平衡基準）")
+            for sym in ["00675L.TW", "00757.TW", "CASH"]:
+                pct = target_alloc_sidebar.get(sym, 0.0) * 100
+                col_l, col_r = st.columns([3, 1])
+                col_l.caption(_ALLOC_LABELS[sym])
+                col_r.markdown(f"**{pct:.0f}%**")
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.title("存股操作 Position Trading APP")
@@ -278,23 +309,36 @@ if dca_rows:
 
 # ── Rules Reference ───────────────────────────────────────────────────────────
 with st.expander("所有規則對照表"):
+    from config import RULE_RATIOS
     ref = []
     for key, r in RULES.items():
-        from config import RULE_RATIOS
         ratio = RULE_RATIOS[key]
-        us_note = "僅 00757" if key == "rule4" else "00757 / 009811"
+        if key == "bull":
+            op = "只做 DCA，不調整交易部位"
+        elif key == "rule1":
+            op = "▶ 多頭後首次觸發 → 再平衡（新循環開始）"
+        else:
+            op = "▶ 首次突破本循環最深記錄 → 再平衡\n↓ 恢復途中 → 維持最深持倉，不調整"
+
         ref.append({
-            "規則": r["label"],
-            "觸發條件": r["desc"],
-            "操作說明": "僅每月 DCA，不調整持倉" if key == "bull" else "調整整體持倉至目標比例",
-            "台灣正2 (00675L)": f"{ratio['leverage']*100:.0f}%",
-            "美股 ETF": f"{ratio['us']*100:.0f}%（{us_note}）" if key != "bull" else "DCA 006208 + 009811 各50%",
-            "現金": f"{ratio['cash']*100:.0f}%",
-            "富邦台50 (006208)": "DCA 50%" if key == "bull" else ("出清" if key == "rule4" else "—"),
-            "統一美國50 (009811)": "DCA 50%" if key == "bull" else "—",
+            "規則":       r["label"],
+            "觸發條件":   r["desc"],
+            "操作時機":   op,
+            "00675L 台灣正2【交易】":  f"{ratio['leverage']*100:.0f}%" if key != "bull" else "—",
+            "00757 統一FANG+【交易】": f"{ratio['us']*100:.0f}%"       if key != "bull" else "—",
+            "現金【交易】":            f"{ratio['cash']*100:.0f}%"      if key != "bull" else "—",
+            "006208 富邦台50【DCA】":  "每月 DCA 50%"  if key != "rule4" else "全數出清",
+            "009811 統一美國50【DCA】": "每月 DCA 50%" if key != "rule4" else "停止，改 DCA 00675L+00757 各50%",
         })
     st.dataframe(pd.DataFrame(ref), use_container_width=True, hide_index=True)
-    st.caption("⏱ 時間過濾：僅「多頭 → 規則一」（跌破 200MA）需連續 3 個交易日確認，且同時跌破 60MA 才觸發；回撤規則（規則二/三/四）及所有返多頭切換均為單日生效。")
+    st.caption(
+        "**持倉繼承邏輯**：加深方向（首次觸底新規則）→ 再平衡至該規則配置；"
+        "恢復方向（回彈）→ 維持本循環最深艙位，不調整。"
+        "返回多頭後再次跌破 200MA 觸發規則一 → 新循環，重新再平衡至規則一配置。\n\n"
+        "**時間濾波**：多頭 → 規則一需連續 3 個交易日跌破 200MA 且同時跌破 60MA 才確認觸發；"
+        "回撤規則（規則二/三/四）及所有返多頭均為單日生效。\n\n"
+        "**DCA 部位獨立**：006208 / 009811 僅做月度定投，不參與再平衡；唯一例外為規則四觸發時改變 DCA 標的。"
+    )
 
 # ── Backtest ──────────────────────────────────────────────────────────────────
 with st.expander("📅 規則回測（歷史觸發紀錄）"):
@@ -330,16 +374,50 @@ with st.expander("📅 規則回測（歷史觸發紀錄）"):
         active_rule_col = "FilteredRule" if use_filter else "Rule"
 
         def _count_transitions(series: "pd.Series") -> list[dict]:
+            from config import RULE_RATIOS
             rows, prev = [], None
+            # 追蹤本次循環最深規則，與 live app track_rule_change 邏輯一致
+            cycle_deepest = series.iloc[0]
+
             for dt, r in series.items():
                 if r != prev:
                     if prev is not None:
+                        deepest_sev = RULE_SEVERITY.get(cycle_deepest, 0)
+                        curr_sev    = RULE_SEVERITY.get(r, 0)
+
+                        # 多頭 → 規則一：新循環，重設最深艙位
+                        if prev == "bull" and r == "rule1":
+                            cycle_deepest = "rule1"
+                            is_deepen = True
+                        elif curr_sev > deepest_sev:
+                            # 突破本循環最深記錄 → 需要再平衡
+                            cycle_deepest = r
+                            is_deepen = True
+                        else:
+                            # 恢復中（未突破最深）→ 維持持倉
+                            is_deepen = False
+
+                        ratio = RULE_RATIOS.get(r, {})
+                        if is_deepen and r != "bull":
+                            action = "▶ 再平衡"
+                            alloc  = (f"00675L {ratio.get('leverage',0)*100:.0f}% / "
+                                      f"00757 {ratio.get('us',0)*100:.0f}% / "
+                                      f"現金 {ratio.get('cash',0)*100:.0f}%")
+                        elif r == "bull":
+                            action, alloc = "↑ 返多頭", "維持持倉"
+                        else:
+                            action, alloc = "↓ 恢復中", "維持持倉"
+
                         rows.append({
-                            "日期":       dt.strftime("%Y-%m-%d"),
-                            "切換":       f"{RULES[prev]['label']} → {RULES[r]['label']}",
-                            "TAIEX":     f"{df_show.loc[dt, 'Close']:,.0f}",
-                            "回撤%":     f"{df_show.loc[dt, 'DD']:.1f}%",
-                            "200MA上方": "✓" if df_show.loc[dt, "AboveMA"] else "✗",
+                            "日期":               dt.strftime("%Y-%m-%d"),
+                            "切換":               f"{RULES[prev]['label']} → {RULES[r]['label']}",
+                            "TAIEX":             f"{df_show.loc[dt, 'Close']:,.0f}",
+                            "回撤%":             f"{df_show.loc[dt, 'DD']:.1f}%",
+                            "操作":               action,
+                            "目標配置（交易部位）": alloc,
+                            "_dt":        dt,
+                            "_rule":      r,
+                            "_is_deepen": is_deepen,
                         })
                     prev = r
             return rows
@@ -389,6 +467,48 @@ with st.expander("📅 規則回測（歷史觸發紀錄）"):
             line_width=0, row=1, col=1,
         )
 
+        # ── 切換點標註（垂直線 + 規則 / 持倉比例標籤）──
+        from config import RULE_RATIOS as _RR
+        for _t in active_trans:
+            _dt        = _t["_dt"]
+            _rule      = _t["_rule"]
+            _is_deepen = _t["_is_deepen"]
+            _color     = "#ff9800" if _is_deepen else "#64b5f6"
+            _ratio     = _RR.get(_rule, {})
+
+            if _is_deepen and _rule != "bull":
+                _ann_text = (
+                    f"<b>▶ {RULES[_rule]['label']}</b><br>"
+                    f"00675L {_ratio.get('leverage',0)*100:.0f}%<br>"
+                    f"00757  {_ratio.get('us',0)*100:.0f}%<br>"
+                    f"現金   {_ratio.get('cash',0)*100:.0f}%"
+                )
+            elif _rule == "bull":
+                _ann_text = "<b>↑ 多頭</b><br>維持持倉"
+            else:
+                _ann_text = f"<b>↓ {RULES[_rule]['label']}</b><br>維持持倉"
+
+            # 垂直虛線
+            fig_bt.add_vline(
+                x=_dt, line_dash="dot", line_color=_color,
+                line_width=1.2, opacity=0.8,
+            )
+            # 標籤（固定在圖表頂部，靠近切換點）
+            fig_bt.add_annotation(
+                x=_dt, y=1.01,
+                xref="x", yref="paper",
+                text=_ann_text,
+                showarrow=False,
+                font=dict(size=8, color=_color),
+                bgcolor="rgba(20,20,20,0.78)",
+                bordercolor=_color,
+                borderwidth=1,
+                borderpad=3,
+                align="left",
+                xanchor="left",
+                yanchor="bottom",
+            )
+
         fig_bt.update_layout(
             height=480, xaxis_rangeslider_visible=False,
             template="plotly_dark",
@@ -405,9 +525,13 @@ with st.expander("📅 規則回測（歷史觸發紀錄）"):
                   delta_color="inverse")
 
         # ── 切換紀錄表 ──
+        _TABLE_COLS = ["日期", "切換", "TAIEX", "回撤%", "操作", "目標配置（交易部位）"]
         if active_trans:
-            st.caption(f"{'濾波後' if use_filter else '原始'} 共 {len(active_trans)} 次規則切換（alarm）")
-            st.dataframe(pd.DataFrame(active_trans), use_container_width=True, hide_index=True)
+            st.caption(f"{'濾波後' if use_filter else '原始'} 共 {len(active_trans)} 次規則切換")
+            st.dataframe(
+                pd.DataFrame(active_trans)[_TABLE_COLS],
+                use_container_width=True, hide_index=True,
+            )
         else:
             st.info(f"{bt_year} 全年維持同一規則，無切換。")
 
